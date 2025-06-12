@@ -19,7 +19,10 @@ import torch
 import torch.backends.cudnn as cudnn
 from decord import VideoReader, cpu
 from einops import rearrange
-from petrel_client.client import Client
+try:
+    from petrel_client.client import Client
+except ImportError:  # pragma: no cover - petrel may not be available
+    Client = None
 from PIL import Image
 from timm.data import create_transform
 from timm.data.constants import (
@@ -171,7 +174,7 @@ def main(args):
     tmp = np.arange(0, 32, 2) + 60
     frame_id_list = tmp.tolist()
 
-    if args.img_path.startswith("s3:"):
+    if args.img_path.startswith("s3:") and Client is not None:
         client = Client()
         video_bytes = client.get(args.img_path)
         vr = VideoReader(memoryview(video_bytes), mc=True, ctx=cpu(0))

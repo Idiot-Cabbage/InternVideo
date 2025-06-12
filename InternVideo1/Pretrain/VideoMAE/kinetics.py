@@ -9,7 +9,10 @@ import decord
 import numpy as np
 import torch
 from decord import VideoReader, cpu
-from petrel_client.client import Client
+try:
+    from petrel_client.client import Client
+except ImportError:  # pragma: no cover - petrel may not be available
+    Client = None
 from PIL import Image
 from torch.utils.data import Dataset
 from torchvision import transforms
@@ -74,7 +77,7 @@ class RawFrameDataset(Dataset):
         self.total_frames = list(cleaned.values[:, 1])
         self.label_array = list(cleaned.values[:, -1])
 
-        self.client = Client()
+        self.client = Client() if Client is not None else None
 
         if (mode == 'train'):
             pass
@@ -110,6 +113,12 @@ class RawFrameDataset(Dataset):
                         self.test_dataset.append(self.dataset_samples[idx])
                         self.test_total_frames.append(self.total_frames[idx])
                         self.test_label_array.append(self.label_array[idx])
+
+    def _get_bytes(self, path):
+        if path.startswith('s3') and self.client is not None:
+            return self.client.get(path)
+        with open(path, 'rb') as f:
+            return f.read()
 
     def __getitem__(self, index):
         if self.mode == 'train':
@@ -276,7 +285,7 @@ class RawFrameDataset(Dataset):
             for idx in all_index:
                 frame_fname = os.path.join(fname,
                                            self.fname_tmpl.format(idx + 1))
-                img_bytes = self.client.get(frame_fname)
+                img_bytes = self._get_bytes(frame_fname)
                 img_np = np.frombuffer(img_bytes, np.uint8)
                 img = cv2.imdecode(img_np, cv2.IMREAD_COLOR)
                 cv2.cvtColor(img, cv2.COLOR_BGR2RGB, img)
@@ -310,7 +319,7 @@ class RawFrameDataset(Dataset):
         imgs = []
         for idx in all_index:
             frame_fname = os.path.join(fname, self.fname_tmpl.format(idx + 1))
-            img_bytes = self.client.get(frame_fname)
+            img_bytes = self._get_bytes(frame_fname)
             img_np = np.frombuffer(img_bytes, np.uint8)
             img = cv2.imdecode(img_np, cv2.IMREAD_COLOR)
             cv2.cvtColor(img, cv2.COLOR_BGR2RGB, img)
@@ -381,7 +390,7 @@ class VideoClsDataset(Dataset):
         self.label_array = list(cleaned.values[:, 1])
 
         conf_path = '~/petreloss2.conf'
-        self.client = Client(conf_path)
+        self.client = Client(conf_path) if Client is not None else None
 
         if (mode == 'train'):
             pass
@@ -416,6 +425,12 @@ class VideoClsDataset(Dataset):
                         self.test_label_array.append(sample_label)
                         self.test_dataset.append(self.dataset_samples[idx])
                         self.test_seg.append((ck, cp))
+
+    def _get_bytes(self, path):
+        if path.startswith('s3') and self.client is not None:
+            return self.client.get(path)
+        with open(path, 'rb') as f:
+            return f.read()
 
     def __getitem__(self, index):
         if self.mode == 'train':
@@ -590,14 +605,14 @@ class VideoClsDataset(Dataset):
         try:
             if self.keep_aspect_ratio:
                 if fname.startswith('s3'):
-                    video_bytes = self.client.get(fname)
+                    video_bytes = self._get_bytes(fname)
                     vr = VideoReader(
                         io.BytesIO(video_bytes), num_threads=1, ctx=cpu(0))
                 else:
                     vr = VideoReader(fname, num_threads=1, ctx=cpu(0))
             else:
                 if fname.startswith('s3:'):
-                    video_bytes = self.client.get(fname)
+                    video_bytes = self._get_bytes(fname)
                     vr = VideoReader(
                         io.BytesIO(video_bytes),
                         width=self.new_width,

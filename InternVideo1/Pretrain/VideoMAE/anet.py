@@ -11,7 +11,10 @@ import torch
 import torch.distributed as dist
 from decord import VideoReader, cpu
 from numpy.lib.function_base import disp
-from petrel_client.client import Client
+try:
+    from petrel_client.client import Client
+except ImportError:  # pragma: no cover - petrel may not be available
+    Client = None
 from PIL import Image
 from torch.utils.data import Dataset
 from torchvision import transforms
@@ -80,7 +83,7 @@ class ANetClsDataset(Dataset):
         self.end_times = list(cleaned.values[:, 3])
         self.label_array = list(cleaned.values[:, 4])
 
-        self.client = Client()
+        self.client = Client() if Client is not None else None
 
         if (mode == 'train'):
             pass
@@ -121,6 +124,12 @@ class ANetClsDataset(Dataset):
                         self.test_end_times.append(self.end_times[idx])
                         self.test_dataset.append(self.dataset_samples[idx])
                         self.test_seg.append((ck, cp))
+
+    def _get_bytes(self, path):
+        if path.startswith('s3') and self.client is not None:
+            return self.client.get(path)
+        with open(path, 'rb') as f:
+            return f.read()
 
     def __getitem__(self, index):
         if self.mode == 'train':
@@ -309,7 +318,7 @@ class ANetClsDataset(Dataset):
 
         if self.keep_aspect_ratio:
             if fname.startswith('s3'):
-                video_bytes = self.client.get(fname)
+                video_bytes = self._get_bytes(fname)
                 vr = VideoReader(io.BytesIO(video_bytes),
                                  num_threads=1,
                                  ctx=cpu(0))
@@ -317,7 +326,7 @@ class ANetClsDataset(Dataset):
                 vr = VideoReader(fname, num_threads=1, ctx=cpu(0))
         else:
             if fname.startswith('s3:'):
-                video_bytes = self.client.get(fname)
+                video_bytes = self._get_bytes(fname)
                 vr = VideoReader(io.BytesIO(video_bytes),
                                  width=self.new_width,
                                  height=self.new_height,
