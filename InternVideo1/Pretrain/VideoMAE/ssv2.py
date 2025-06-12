@@ -5,7 +5,10 @@ import cv2
 import numpy as np
 import torch
 from decord import VideoReader, cpu
-from petrel_client.client import Client
+try:
+    from petrel_client.client import Client
+except ImportError:  # pragma: no cover - petrel may not be available
+    Client = None
 from torch.utils.data import Dataset
 from torchvision import transforms
 
@@ -65,7 +68,7 @@ class SSRawFrameClsDataset(Dataset):
         self.total_frames = list(cleaned.values[:, 1])
         self.label_array = list(cleaned.values[:, -1])
 
-        self.client = Client()
+        self.client = Client() if Client is not None else None
 
         if (mode == 'train'):
             pass
@@ -101,6 +104,12 @@ class SSRawFrameClsDataset(Dataset):
                         self.test_dataset.append(self.dataset_samples[idx])
                         self.test_total_frames.append(self.total_frames[idx])
                         self.test_label_array.append(self.label_array[idx])
+
+    def _get_bytes(self, path):
+        if path.startswith('s3') and self.client is not None:
+            return self.client.get(path)
+        with open(path, 'rb') as f:
+            return f.read()
 
     def __getitem__(self, index):
         if self.mode == 'train':
@@ -267,7 +276,7 @@ class SSRawFrameClsDataset(Dataset):
             for idx in all_index:
                 frame_fname = os.path.join(fname,
                                            self.filename_tmpl.format(idx + 1))
-                img_bytes = self.client.get(frame_fname)
+                img_bytes = self._get_bytes(frame_fname)
                 img_np = np.frombuffer(img_bytes, np.uint8)
                 img = cv2.imdecode(img_np, cv2.IMREAD_COLOR)
                 cv2.cvtColor(img, cv2.COLOR_BGR2RGB, img)
@@ -305,7 +314,7 @@ class SSRawFrameClsDataset(Dataset):
         for idx in all_index:
             frame_fname = os.path.join(fname,
                                        self.filename_tmpl.format(idx + 1))
-            img_bytes = self.client.get(frame_fname)
+            img_bytes = self._get_bytes(frame_fname)
             img_np = np.frombuffer(img_bytes, np.uint8)
             img = cv2.imdecode(img_np, cv2.IMREAD_COLOR)
             cv2.cvtColor(img, cv2.COLOR_BGR2RGB, img)

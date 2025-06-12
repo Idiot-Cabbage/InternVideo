@@ -7,7 +7,10 @@ import decord
 import numpy as np
 import torch
 from decord import VideoReader, cpu
-from petrel_client.client import Client
+try:
+    from petrel_client.client import Client
+except ImportError:  # pragma: no cover - petrel may not be available
+    Client = None
 from PIL import Image
 
 
@@ -109,7 +112,7 @@ class HybridVideoMAE(torch.utils.data.Dataset):
 
         self.decord = True
 
-        self.client = Client()
+        self.client = Client() if Client is not None else None
 
         if not self.lazy_init:
             self.clips = self._make_dataset(root, setting)
@@ -117,7 +120,13 @@ class HybridVideoMAE(torch.utils.data.Dataset):
                 raise (
                     RuntimeError("Found 0 video clips in subfolders of: " +
                                  root + "\n"
-                                 "Check your data directory (opt.data-dir)."))
+                                "Check your data directory (opt.data-dir)."))
+
+    def _get_bytes(self, path):
+        if path.startswith('s3') and self.client is not None:
+            return self.client.get(path)
+        with open(path, 'rb') as f:
+            return f.read()
 
     def __getitem__(self, index):
         while True:
@@ -126,7 +135,7 @@ class HybridVideoMAE(torch.utils.data.Dataset):
                 if total_frame < 0:
                     self.new_step = 4
                     self.skip_length = self.new_length * self.new_step
-                    video_bytes = self.client.get(video_name)
+                    video_bytes = self._get_bytes(video_name)
                     decord_vr = VideoReader(io.BytesIO(video_bytes),
                                             num_threads=1,
                                             ctx=cpu(0))
@@ -168,7 +177,7 @@ class HybridVideoMAE(torch.utils.data.Dataset):
                     for idx in frame_id_list:
                         frame_fname = os.path.join(
                             video_name, fname_tmpl.format(idx + start_idx))
-                        img_bytes = self.client.get(frame_fname)
+                        img_bytes = self._get_bytes(frame_fname)
                         img_np = np.frombuffer(img_bytes, np.uint8)
                         img = cv2.imdecode(img_np, cv2.IMREAD_COLOR)
                         cv2.cvtColor(img, cv2.COLOR_BGR2RGB, img)
@@ -359,7 +368,7 @@ class VideoMAE(torch.utils.data.Dataset):
 
         self.decord = True
 
-        self.client = Client()
+        self.client = Client() if Client is not None else None
 
         if not self.lazy_init:
             self.clips = self._make_dataset(root, setting)
@@ -369,13 +378,19 @@ class VideoMAE(torch.utils.data.Dataset):
                                  root + "\n"
                                  "Check your data directory (opt.data-dir)."))
 
+    def _get_bytes(self, path):
+        if path.startswith('s3') and self.client is not None:
+            return self.client.get(path)
+        with open(path, 'rb') as f:
+            return f.read()
+
     def __getitem__(self, index):
         while True:
             try:
                 video_name, start_idx, total_frame, target = self.clips[index]
                 if total_frame < 0:  # load video
                     if video_name.startswith('s3:'):
-                        video_bytes = self.client.get(video_name)
+                        video_bytes = self._get_bytes(video_name)
                         decord_vr = VideoReader(io.BytesIO(video_bytes),
                                                 num_threads=1,
                                                 ctx=cpu(0))
@@ -407,7 +422,7 @@ class VideoMAE(torch.utils.data.Dataset):
                             video_name,
                             self.name_pattern.format(idx + start_idx))
                         if frame_fname.startswith('s3:'):
-                            img_bytes = self.client.get(frame_fname)
+                            img_bytes = self._get_bytes(frame_fname)
                             img_np = np.frombuffer(img_bytes, np.uint8)
                             img = cv2.imdecode(img_np, cv2.IMREAD_COLOR)
                             cv2.cvtColor(img, cv2.COLOR_BGR2RGB, img)
@@ -605,7 +620,7 @@ class OldVideoMAE(torch.utils.data.Dataset):
         self.decord = True
 
         conf_path = '~/petreloss.conf'
-        client = Client(conf_path)
+        client = Client(conf_path) if Client is not None else None
         self.client = client
         if not self.lazy_init:
             self.clips = self._make_dataset(root, setting)
@@ -614,6 +629,12 @@ class OldVideoMAE(torch.utils.data.Dataset):
                     RuntimeError("Found 0 video clips in subfolders of: " +
                                  root + "\n"
                                  "Check your data directory (opt.data-dir)."))
+
+    def _get_bytes(self, path):
+        if path.startswith('s3') and self.client is not None:
+            return self.client.get(path)
+        with open(path, 'rb') as f:
+            return f.read()
 
     def __getitem__(self, index):
         while True:
@@ -625,7 +646,7 @@ class OldVideoMAE(torch.utils.data.Dataset):
                     else:
                         video_name = '{}.{}'.format(directory, self.video_ext)
                     if video_name.startswith('s3'):
-                        video_bytes = self.client.get(video_name)
+                        video_bytes = self._get_bytes(video_name)
                         decord_vr = VideoReader(io.BytesIO(video_bytes),
                                                 num_threads=1,
                                                 ctx=cpu(0))
