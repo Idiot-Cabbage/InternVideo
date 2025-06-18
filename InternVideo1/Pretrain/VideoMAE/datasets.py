@@ -383,6 +383,58 @@ def build_dataset(is_train, test_mode, args):
                                   new_width=320,
                                   args=args)
         nb_classes = 48
+    elif args.data_set == 'TrafficAnomaly-7':
+        mode = None
+        anno_path = None
+        if is_train == True:
+            mode = 'train'
+            anno_path = os.path.join(args.data_path, 'train.csv')
+        elif test_mode == True:
+            mode = 'test'
+            anno_path = os.path.join(args.data_path, 'test.csv')
+        else:
+            mode = 'validation'
+            anno_path = os.path.join(args.data_path, 'val.csv')
+
+        if not args.sparse_sample:
+            dataset = VideoClsDataset(
+                anno_path=anno_path,
+                data_path='/',
+                mode=mode,
+                clip_len=args.num_frames,
+                frame_sample_rate=args.sampling_rate,
+                num_segment=1,
+                test_num_segment=args.test_num_segment,
+                test_num_crop=args.test_num_crop,
+                num_crop=1 if not test_mode else 3,
+                keep_aspect_ratio=True,
+                crop_size=args.input_size,
+                short_side_size=args.short_side_size,
+                new_height=256,
+                new_width=320,
+                sparse_sample=False,
+                v4d_segment=args.num_segment if is_train else 1,
+                args=args)
+        else:
+            dataset = VideoClsDataset(
+                anno_path=anno_path,
+                data_path='/',
+                mode=mode,
+                clip_len=1,
+                frame_sample_rate=1,
+                num_segment=args.num_frames,
+                test_num_segment=args.test_num_segment,
+                test_num_crop=args.test_num_crop,
+                num_crop=1 if not test_mode else 3,
+                keep_aspect_ratio=True,
+                crop_size=args.input_size,
+                short_side_size=args.short_side_size,
+                new_height=256,
+                new_width=320,
+                sparse_sample=True,
+                v4d_segment=args.num_segment if is_train else 1,
+                args=args)
+        nb_classes = args.nb_classes
     elif args.data_set == 'ANet':
         mode = None
         anno_path = None
