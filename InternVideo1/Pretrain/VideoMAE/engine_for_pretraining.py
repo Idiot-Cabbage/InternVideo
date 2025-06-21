@@ -38,7 +38,8 @@ def train_one_epoch(model: torch.nn.Module,
     metric_logger.add_meter(
         'min_lr', utils.SmoothedValue(window_size=1, fmt='{value:.6f}'))
     header = 'Epoch: [{}]'.format(epoch)
-    print_freq = 10
+    # print training status for every iteration instead of every 10 iterations
+    print_freq = 1
 
     loss_func = nn.MSELoss()
 
