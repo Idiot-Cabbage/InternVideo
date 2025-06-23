@@ -55,7 +55,8 @@ def train_one_epoch(model: torch.nn.Module,
     metric_logger.add_meter(
         'min_lr', utils.SmoothedValue(window_size=1, fmt='{value:.6f}'))
     header = 'Epoch: [{}]'.format(epoch)
-    print_freq = 10
+    # print training status for every iteration instead of every 10 iterations
+    print_freq = 1
 
     if loss_scaler is None:
         model.zero_grad()
@@ -200,7 +201,8 @@ def validation_one_epoch(data_loader, model, device):
     # switch to evaluation mode
     model.eval()
 
-    for batch in metric_logger.log_every(data_loader, 10, header):
+    # print validation status for every iteration
+    for batch in metric_logger.log_every(data_loader, 1, header):
         images = batch[0]
         target = batch[1]
         images = images.to(device, non_blocking=True)
@@ -239,7 +241,8 @@ def final_test(data_loader, model, device, file):
     model.eval()
     final_result = []
 
-    for batch in metric_logger.log_every(data_loader, 10, header):
+    # print testing status for every iteration
+    for batch in metric_logger.log_every(data_loader, 1, header):
         images = batch[0]
         target = batch[1]
         ids = batch[2]

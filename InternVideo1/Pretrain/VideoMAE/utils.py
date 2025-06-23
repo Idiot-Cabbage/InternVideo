@@ -515,7 +515,10 @@ def auto_load_model(args,
             print("Resume checkpoint %s" % args.resume)
             if 'optimizer' in checkpoint and 'epoch' in checkpoint:
                 optimizer.load_state_dict(checkpoint['optimizer'])
-                args.start_epoch = checkpoint['epoch'] + 1
+                ckpt_epoch = checkpoint['epoch']
+                if isinstance(ckpt_epoch, str):
+                    ckpt_epoch = int(ckpt_epoch) if ckpt_epoch.isdigit() else 0
+                args.start_epoch = ckpt_epoch + 1
                 if hasattr(args, 'model_ema') and args.model_ema:
                     _load_checkpoint_for_ema(model_ema,
                                              checkpoint['model_ema'])
@@ -541,7 +544,10 @@ def auto_load_model(args,
                                                          tag='checkpoint-%d' %
                                                          latest_ckpt)
                 if 'epoch' in client_states:
-                    args.start_epoch = client_states['epoch'] + 1
+                    ckpt_epoch = client_states['epoch']
+                    if isinstance(ckpt_epoch, str):
+                        ckpt_epoch = int(ckpt_epoch) if ckpt_epoch.isdigit() else 0
+                    args.start_epoch = ckpt_epoch + 1
                 if model_ema is not None:
                     if args.model_ema:
                         _load_checkpoint_for_ema(model_ema,
